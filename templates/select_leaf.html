@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Select Leaf</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="preloader">
+        <div class="preloader-spinner"></div>
+    </div>
+
+    <header class="header">
+        <h1>Tomato Leaf Disease Analyzer</h1>
+        <p>Select a leaf to analyze for diseases</p>
+        <nav class="header-nav">
+            <a href="{{ url_for('admin_login') }}">Admin Login</a>
+        </nav>
+    </header>
+
+    <div class="main-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="card">
+            <div class="card-header">
+                <h2>Select a Leaf</h2>
+            </div>
+            <div class="card-body">
+                <div class="image-container">
+                    <img src="{{ url_for('static', filename=original_image) }}" alt="Original Image" class="uploaded-image">
+                </div>
+                <form method="POST" action="{{ url_for('classify_selected_leaf') }}">
+                    <input type="hidden" name="country" value="{{ country }}">
+                    <input type="hidden" name="state" value="{{ state }}">
+                    <input type="hidden" name="district" value="{{ district }}">
+                    <div class="leaf-selection">
+                        {% for leaf_path, leaf_box in leaves %}
+                            <div class="leaf-option">
+                                <input type="radio" id="leaf-{{ loop.index }}" name="leaf_path" value="{{ leaf_path }}" required>
+                                <label for="leaf-{{ loop.index }}">
+                                    <img src="{{ url_for('static', filename=leaf_path) }}" alt="Leaf {{ loop.index }}" class="leaf-image">
+                                    <p>Leaf {{ loop.index }}</p>
+                                </label>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <button type="submit">Analyze Selected Leaf</button>
+                </form>
+                <p style="margin-top: 1rem;"><a href="{{ url_for('index') }}" class="reset-btn">Upload New Image</a></p>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <p>Tomato Leaf Disease Detection — Powered by AI & Built with Flask</p>
+    </footer>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AI-powered tomato leaf disease detection tool">
+    <meta name="keywords" content="tomato, leaf, disease, detection, AI, agriculture">
+    <title>Tomato Leaf Disease Analyzer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="preloader">
+        <div class="preloader-spinner"></div>
+    </div>
+
+    <header class="header">
+        <h1>Tomato Leaf Disease Analyzer</h1>
+        <p>Upload a tomato leaf image to detect diseases using advanced AI technology</p>
+        <nav class="header-nav">
+            <a href="{{ url_for('admin_login') }}">Admin Login</a>
+        </nav>
+    </header>
+
+    <div class="main-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% if error %}
+            <div class="error-message">
+                <h3>Oops! Invalid Image</h3>
+                <p>{{ error }}</p>
+                <a href="/" class="reset-btn">Try Another Image</a>
+            </div>
+        {% endif %}
+
+        {% if page == 'upload' %}
+            <div class="card" id="upload-card">
+                <div class="card-header">
+                    <h2>Analyze Your Leaf</h2>
+                </div>
+                <div class="card-body">
+                    <form action="/predict" method="post" enctype="multipart/form-data" id="upload-form">
+                        <div class="form-group">
+                            <label for="country">Country: <span style="color: red;">*</span></label>
+                            <select id="country" name="country" onchange="updateStateField()" required>
+                                <option value="">Select Country</option>
+                                {% for country in countries %}
+                                    <option value="{{ country }}" {% if country == selected_country %}selected{% endif %}>{{ country }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group" id="state-group">
+                            <label for="state">State/Province: <span style="color: red;">*</span></label>
+                            {% if selected_country == 'India' %}
+                                <select id="state" name="state" onchange="updateDistrictField()" required>
+                                    <option value="">Select State</option>
+                                    {% for state in indian_states %}
+                                        <option value="{{ state }}" {% if state == selected_state %}selected{% endif %}>{{ state }}</option>
+                                    {% endfor %}
+                                </select>
+                            {% else %}
+                                <input type="text" id="state" name="state" placeholder="Enter State or 'Other'" value="{{ selected_state|default('') }}" required>
+                            {% endif %}
+                        </div>
+                        <div class="form-group" id="district-group">
+                            <label for="district">District/Region: <span style="color: red;">*</span></label>
+                            {% if selected_country == 'India' and selected_state and districts %}
+                                <select id="district" name="district" required>
+                                    <option value="">Select District</option>
+                                    {% for district in districts %}
+                                        <option value="{{ district }}" {% if district == selected_district %}selected{% endif %}>{{ district }}</option>
+                                    {% endfor %}
+                                </select>
+                            {% else %}
+                                <input type="text" id="district" name="district" placeholder="Enter District or 'Other'" value="{{ selected_district|default('') }}" required>
+                            {% endif %}
+                        </div>
+                        <div class="upload-section" id="drop-area">
+                            <div class="upload-icon">🌿</div>
+                            <p>Drag & drop your tomato leaf image here<br>or click to select</p>
+                            <label for="image-upload" class="upload-btn">Upload Image</label>
+                            <input type="file" name="image" id="image-upload" class="file-input" accept="image/*" required>
+                        </div>
+                        <!--<button type="submit" class="submit-btn">Analyze</button>-->
+                    </form>
+                    <div class="loading" id="loading-section" style="display: none;">
+                        <div class="spinner"></div>
+                        <p>Analyzing your leaf...</p>
+                    </div>
+                </div>
+            </div>
+        {% elif page == 'result' %}
+            <div class="card">
+                <div class="card-header">
+                    <h2>Detection Results</h2>
+                </div>
+                <div class="card-body">
+                    <div class="result-section">
+                        <div class="result-container">
+                            <div class="image-container">
+                                <img src="{{ url_for('static', filename=prediction.image_path) }}"
+                                     alt="Uploaded Tomato Leaf"
+                                     class="uploaded-image">
+                            </div>
+                            <div class="prediction-details">
+                                <div>
+                                    <h3 class="disease-name">{{ prediction.label }}</h3>
+                                    <div class="confidence-bar">
+                                        <div class="confidence-fill" style="width: {{ prediction.confidence }}%;"></div>
+                                    </div>
+                                    <p class="confidence-text">Confidence: {{ prediction.confidence }}%</p>
+                                </div>
+                                <div class="disease-info">
+                                    <h4 class="info-title">About This Disease</h4>
+                                    <p class="info-content">{{ prediction.disease_info.description }}</p>
+                                </div>
+                                <div class="treatment-section">
+                                    <h4 class="info-title">Recommended Treatment</h4>
+                                    <p class="info-content">{{ prediction.disease_info.treatment }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <a href="/" class="reset-btn">Analyze New Leaf</a>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    <footer class="footer">
+        <p>Tomato Leaf Disease Detection — Powered by AI & Built with Flask</p>
+    </footer>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script>
+        const indianStates = {{ indian_states|tojson }};
+        const stateDistricts = {{ state_districts|default('{}')|tojson }};
+
+        function updateStateField() {
+            const country = document.getElementById('country').value;
+            const stateGroup = document.getElementById('state-group');
+            const districtGroup = document.getElementById('district-group');
+            const currentState = "{{ selected_state|default('') }}";
+            const currentDistrict = "{{ selected_district|default('') }}";
+
+            if (country === 'India') {
+                stateGroup.innerHTML = `
+                    <label for="state">State/Province: <span style="color: red;">*</span></label>
+                    <select id="state" name="state" onchange="updateDistrictField()" required>
+                        <option value="">Select State</option>
+                        ${indianStates.map(state => `<option value="${state}" ${state === currentState ? 'selected' : ''}>${state}</option>`).join('')}
+                    </select>
+                `;
+                districtGroup.innerHTML = `
+                    <label for="district">District/Region: <span style="color: red;">*</span></label>
+                    <select id="district" name="district" required>
+                        <option value="">Select District</option>
+                    </select>
+                `;
+            } else {
+                stateGroup.innerHTML = `
+                    <label for="state">State/Province: <span style="color: red;">*</span></label>
+                    <input type="text" id="state" name="state" placeholder="Enter State or 'Other'" value="${currentState}" required>
+                `;
+                districtGroup.innerHTML = `
+                    <label for="district">District/Region: <span style="color: red;">*</span></label>
+                    <input type="text" id="district" name="district" placeholder="Enter District or 'Other'" value="${currentDistrict}" required>
+                `;
+            }
+            if (country === 'India' && currentState) {
+                updateDistrictField();
+            }
+        }
+
+        function updateDistrictField() {
+            const state = document.getElementById('state').value;
+            const districtGroup = document.getElementById('district-group');
+            const districts = stateDistricts[state] || [];
+            const currentDistrict = "{{ selected_district|default('') }}";
+
+            if (districts.length > 0) {
+                districtGroup.innerHTML = `
+                    <label for="district">District/Region: <span style="color: red;">*</span></label>
+                    <select id="district" name="district" required>
+                        <option value="">Select District</option>
+                        ${districts.map(district => `<option value="${district}" ${district === currentDistrict ? 'selected' : ''}>${district}</option>`).join('')}
+                    </select>
+                `;
+            } else {
+                districtGroup.innerHTML = `
+                    <label for="district">District/Region: <span style="color: red;">*</span></label>
+                    <input type="text" id="district" name="district" placeholder="Enter District or 'Other'" value="${currentDistrict}" required>
+                `;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            updateStateField();
+        });
+
+        document.getElementById('upload-form').addEventListener('submit', function() {
+            document.getElementById('loading-section').style.display = 'block';
+        });
+    </script>
+</body>
+</html>
